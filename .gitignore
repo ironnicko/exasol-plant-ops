@@ -1,0 +1,7 @@
+.env
+*.csv
+sql/
+deployment/
+config.py
+
+*__pycache__/
