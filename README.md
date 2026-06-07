@@ -98,6 +98,131 @@ All insights presented to users are derived directly from data stored and proces
 
 The dataset was generated from Claude intentionally to have indirect relation between error_logs and downtime_events such that when there was a spike in temperature and vibrations in M1, it caused a HIGH serverity error and that ultimately caused an 'UNPLANNED' downtime.
 
+# PLANT_OPS Database Schema
+
+## PLANTS
+
+| Column | Data Type | Nullable | Description |
+|----------|----------|----------|----------|
+| PLANT_ID | VARCHAR(10) | No | Unique plant identifier |
+| PLANT_NAME | VARCHAR(100) | No | Plant name |
+| LOCATION | VARCHAR(100) | Yes | Plant location |
+| TIMEZONE | VARCHAR(50) | Yes | Plant timezone |
+
+**Primary Key:** `PLANT_ID`
+
+---
+
+## PRODUCTION_LINES
+
+| Column | Data Type | Nullable | Description |
+|----------|----------|----------|----------|
+| LINE_ID | VARCHAR(10) | No | Unique production line identifier |
+| PLANT_ID | VARCHAR(10) | No | Parent plant identifier |
+| LINE_NAME | VARCHAR(100) | No | Production line name |
+| PRODUCT_TYPE | VARCHAR(100) | Yes | Product manufactured on line |
+
+**Primary Key:** `LINE_ID`
+
+**Foreign Key:** `PLANT_ID → PLANTS.PLANT_ID`
+
+---
+
+## MACHINES
+
+| Column | Data Type | Nullable | Description |
+|----------|----------|----------|----------|
+| MACHINE_ID | VARCHAR(10) | No | Unique machine identifier |
+| LINE_ID | VARCHAR(10) | No | Production line identifier |
+| MACHINE_NAME | VARCHAR(100) | No | Machine name |
+| MACHINE_TYPE | VARCHAR(100) | Yes | Machine category/type |
+| INSTALL_DATE | DATE | Yes | Installation date |
+| STATUS | VARCHAR(30) | Yes | Current machine status |
+| BASELINE_VIBRATION | DECIMAL(8,2) | Yes | Baseline vibration threshold |
+| BASELINE_TEMP | DECIMAL(8,2) | Yes | Baseline temperature threshold |
+
+**Primary Key:** `MACHINE_ID`
+
+**Foreign Key:** `LINE_ID → PRODUCTION_LINES.LINE_ID`
+
+---
+
+## SENSOR_READINGS
+
+| Column | Data Type | Nullable | Description |
+|----------|----------|----------|----------|
+| READING_ID | VARCHAR(20) | No | Unique sensor reading identifier |
+| MACHINE_ID | VARCHAR(10) | No | Machine identifier |
+| READING_TIMESTAMP | TIMESTAMP | Yes | Reading timestamp |
+| VIBRATION_MM_S | DECIMAL(10,2) | Yes | Vibration (mm/s) |
+| TEMPERATURE_C | DECIMAL(10,2) | Yes | Temperature (°C) |
+| PRESSURE_BAR | DECIMAL(10,2) | Yes | Pressure (bar) |
+| RPM | INTEGER | Yes | Machine RPM |
+| OIL_LEVEL_PCT | DECIMAL(10,2) | Yes | Oil level percentage |
+
+**Primary Key:** `READING_ID`
+
+**Foreign Key:** `MACHINE_ID → MACHINES.MACHINE_ID`
+
+---
+
+## ERROR_LOGS
+
+| Column | Data Type | Nullable | Description |
+|----------|----------|----------|----------|
+| ERROR_ID | VARCHAR(20) | No | Unique error identifier |
+| MACHINE_ID | VARCHAR(10) | No | Machine identifier |
+| ERROR_TIMESTAMP | TIMESTAMP | Yes | Error occurrence timestamp |
+| ERROR_CODE | VARCHAR(20) | Yes | Error code |
+| SEVERITY | VARCHAR(20) | Yes | Error severity |
+| DESCRIPTION | VARCHAR(500) | Yes | Error description |
+| RESOLVED | BOOLEAN | Yes | Resolution status |
+| RESOLVED_AT | TIMESTAMP | Yes | Resolution timestamp |
+
+**Primary Key:** `ERROR_ID`
+
+**Foreign Key:** `MACHINE_ID → MACHINES.MACHINE_ID`
+
+---
+
+## DOWNTIME_EVENTS
+
+| Column | Data Type | Nullable | Description |
+|----------|----------|----------|----------|
+| DOWNTIME_ID | VARCHAR(20) | No | Unique downtime event identifier |
+| MACHINE_ID | VARCHAR(10) | No | Machine identifier |
+| START_TIME | TIMESTAMP | Yes | Downtime start time |
+| END_TIME | TIMESTAMP | Yes | Downtime end time |
+| DURATION_HOURS | DECIMAL(10,2) | Yes | Downtime duration |
+| DOWNTIME_TYPE | VARCHAR(50) | Yes | Planned / Unplanned / Maintenance |
+| ROOT_CAUSE | VARCHAR(500) | Yes | Root cause analysis |
+| PRODUCTION_LOSS_UNITS | INTEGER | Yes | Lost production units |
+
+**Primary Key:** `DOWNTIME_ID`
+
+**Foreign Key:** `MACHINE_ID → MACHINES.MACHINE_ID`
+
+---
+
+## MAINTENANCE_RECORDS
+
+| Column | Data Type | Nullable | Description |
+|----------|----------|----------|----------|
+| MAINTENANCE_ID | VARCHAR(20) | No | Unique maintenance record identifier |
+| MACHINE_ID | VARCHAR(10) | No | Machine identifier |
+| MAINTENANCE_DATE | DATE | Yes | Maintenance date |
+| MAINTENANCE_TYPE | VARCHAR(50) | Yes | Preventive / Corrective |
+| TECHNICIAN | VARCHAR(100) | Yes | Assigned technician |
+| PARTS_REPLACED | VARCHAR(255) | Yes | Replaced parts |
+| DURATION_HOURS | DECIMAL(10,2) | Yes | Maintenance duration |
+| COST_USD | DECIMAL(12,2) | Yes | Maintenance cost |
+| NOTES | VARCHAR(2000) | Yes | Additional notes |
+
+**Primary Key:** `MAINTENANCE_ID`
+
+**Foreign Key:** `MACHINE_ID → MACHINES.MACHINE_ID`
+
+
 ### Prompt 
 ```
 Generate a mock relational manufacturing dataset (plant_ops schema) across 7 interconnected CSVs: plants, production_lines, machines, sensor_readings, error_logs, downtime_events, and maintenance_records. Ensure perfect referential integrity.
@@ -151,10 +276,17 @@ To reduce the risk of unsupported or unsafe actions:
 
 ### Future Improvements
 
-* Scheduled operational reporting (Using Cronjobs in OpenClaw).
-* Alerting and notification workflows.
-* To be production ready, would need to package this setup into something more one-stop shop. Right now the process to glue these things together isn't intuitive for a person with less-tech experience.
-* Build a script to optionally make the necessary changes to Claude settings and to install exasol-mcp-server in user's local machine right after deployment of Exasol Personal `exasol install <cloud provider> --with-mcp`.
+* **Advanced Analytics Layer**
+Implement User-Defined Functions (UDFs) for complex analytical logic directly in Exasol—rolling failure rate calculations, sensor anomaly detection, predictive scoring. Eliminates post-query processing and enables questions like "Which machines are trending toward failure?" to execute at database speed.
+
+* **Autonomous Plant Management**
+Evolve from insights to actions. Enable the system to recommend and execute safe operational decisions (pause production lines, throttle failing machines, trigger preventive maintenance) with built-in approval workflows, audit logging, and rollback capabilities.
+
+* **Proactive Alerting**
+Shift from reactive dashboards to push-based notifications. Implement scheduled health reports, shift handover summaries, downtime alerts, and maintenance risk notifications using OpenClaw's automation capabilities.
+
+* **One-Click Deployment**
+Streamline setup with an automated installer that configures Claude settings, deploys the Exasol MCP Server, and provisions the database—eliminating manual configuration complexity for non-technical users.
 
 ---
 
@@ -168,7 +300,7 @@ To reduce the risk of unsupported or unsafe actions:
 ├── schema.sql                 # Exasol schema definitions
 ├── test_queries.sql           # Example analytical queries
 ├── plant_ops_dataset/         # Mock plant operations dataset
-├── deployment/                # MCP deployment configuration
+├── deployment/                # Exasol deployment
 ├── pyproject.toml             # Dependencies
 └── README.md
 ```
